@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>Tcod</w>
+      <w>tcod</w>
     </words>
   </dictionary>
 </component>
