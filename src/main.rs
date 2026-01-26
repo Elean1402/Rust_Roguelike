@@ -57,6 +57,7 @@ fn make_map() -> Map {
 
     map
 }
+
 fn render_all(tcod: &mut Tcod, game: &Game, objects: &Objects) {
     // draw all objects in the list
     objects.draw_all(&mut tcod.con);
