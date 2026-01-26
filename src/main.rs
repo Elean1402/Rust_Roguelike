@@ -27,7 +27,6 @@ struct Tile {
     block_sight: bool,
 }
 
-
 impl Tile {
     pub fn empty() -> Self {
         Tile {
