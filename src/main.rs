@@ -27,6 +27,7 @@ struct Tile {
     block_sight: bool,
 }
 
+
 impl Tile {
     pub fn empty() -> Self {
         Tile {
@@ -47,6 +48,7 @@ type Map = Vec<Vec<Tile>>;
 struct Game {
     map: Map,
 }
+
 fn make_map() -> Map {
     // fill map with "unblocked" tiles
     let mut map = vec![vec![Tile::empty(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
