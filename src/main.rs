@@ -48,17 +48,6 @@ struct Game {
     map: Map,
 }
 
-fn make_map() -> Map {
-    // fill map with "unblocked" tiles
-    let mut map = vec![vec![Tile::empty(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
-
-    // place two pillars to test the map
-    map[30][22] = Tile::wall();
-    map[50][22] = Tile::wall();
-
-    map
-}
-
 fn render_all(tcod: &mut Tcod, game: &Game, objects: &Objects) {
     // draw all objects in the list
     objects.draw_all(&mut tcod.con);
@@ -86,6 +75,16 @@ fn render_all(tcod: &mut Tcod, game: &Game, objects: &Objects) {
         1.0,
         1.0,
     );
+}
+fn make_map() -> Map {
+    // fill map with "unblocked" tiles
+    let mut map = vec![vec![Tile::empty(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
+
+    // place two pillars to test the map
+    map[30][22] = Tile::wall();
+    map[50][22] = Tile::wall();
+
+    map
 }
 
 #[derive(Debug)]
