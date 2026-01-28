@@ -1,12 +1,14 @@
 use std::collections::HashMap;
-use tcod::colors;
 use tcod::colors::*;
 use tcod::console::*;
+use std::cmp;
+use std::cmp::PartialEq;
+use rand::{random_range, Rng};
 
 // actual size of window
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
-const LIMIT_FPS: i32 = 20; //20 frames per sec maximum
+const LIMIT_FPS: i32 = 60; //20 frames per sec maximum
 const MAP_WIDTH: i32 = 80;
 const MAP_HEIGHT: i32 = 45;
 const COLOR_DARK_WALL: Color = Color { r: 0, g: 0, b: 100 };
@@ -15,6 +17,9 @@ const COLOR_DARK_GROUND: Color = Color {
     g: 50,
     b: 150,
 };
+const ROOM_MAX_SIZE: i32 = 10;
+const ROOM_MIN_SIZE: i32 = 6;
+const MAX_ROOMS: i32 = 30;
 
 struct Tcod {
     root: Root,
@@ -26,7 +31,6 @@ struct Tile {
     blocked: bool,
     block_sight: bool,
 }
-
 
 impl Tile {
     pub fn empty() -> Self {
@@ -49,46 +53,45 @@ struct Game {
     map: Map,
 }
 
-
-fn make_map() -> Map {
-    // fill map with "unblocked" tiles
-    let mut map = vec![vec![Tile::empty(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
-
-    // place two pillars to test the map
-    map[30][22] = Tile::wall();
-    map[50][22] = Tile::wall();
-
-    map
+// rectangle on the map, used to characterise a room.
+#[derive(Clone, Copy, Debug)]
+struct Rect {
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
 }
-
-fn render_all(tcod: &mut Tcod, game: &Game, objects: &Objects) {
-    // draw all objects in the list
-    objects.draw_all(&mut tcod.con);
-
-    // go through all tiles, and set their background color
-    for y in 0..MAP_HEIGHT {
-        for x in 0..MAP_WIDTH {
-            let wall = game.map[x as usize][y as usize].block_sight;
-            if wall {
-                tcod.con
-                    .set_char_background(x, y, COLOR_DARK_WALL, BackgroundFlag::Set);
-            } else {
-                tcod.con
-                    .set_char_background(x, y, COLOR_DARK_GROUND, BackgroundFlag::Set);
-            }
+impl PartialEq for Rect {
+    fn eq(&self, other: &Self) -> bool {
+        (self.x1 == other.x2)
+            && (self.x2 == other.x1)
+            && (self.y1 == other.y2)
+            && (self.y2 == other.y1)
+    }
+}
+impl Rect {
+    pub fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
+        Rect {
+            x1: x,
+            y1: y,
+            x2: x + w,
+            y2: y + h,
         }
     }
-
-    blit(
-        &tcod.con,
-        (0, 0),
-        (SCREEN_WIDTH, SCREEN_HEIGHT),
-        &mut tcod.root,
-        (0, 0),
-        1.0,
-        1.0,
-    );
+    pub fn center(&self) -> (i32, i32) {
+        let center_x = (self.x1 + self.x2) / 2;
+        let center_y = (self.y1 + self.y2) / 2;
+        (center_x, center_y)
+    }
+    pub fn intersects_with(&self, other: &Rect) -> bool {
+        // returns true if this rectangle intersects with another one
+        (self.x1 <= other.x2)
+        && (self.x2 >= other.x1)
+        && (self.y1 <= other.y2)
+        && (self.y2 >= other.y1)
+    }
 }
+
 #[derive(Debug)]
 struct Object {
     x: i32,
@@ -156,6 +159,79 @@ fn handle_keys(tcod: &mut Tcod, game: &Game, player: &mut Object) -> bool {
     false
 }
 
+fn create_room(room: Rect, map: &mut Map) {
+    // go through the tiles in the rectangle and make them passable
+    for x in (room.x1 + 1)..room.x2 {
+        for y in (room.y1 + 1)..room.y2 {
+            map[x as usize][y as usize] = Tile::empty();
+        }
+    }
+}
+
+fn render_all(tcod: &mut Tcod, game: &Game, objects: &Objects) {
+    // draw all objects in the list
+    objects.draw_all(&mut tcod.con);
+
+    // go through all tiles, and set their background color
+    for y in 0..MAP_HEIGHT {
+        for x in 0..MAP_WIDTH {
+            let wall = game.map[x as usize][y as usize].block_sight;
+            if wall {
+                tcod.con
+                    .set_char_background(x, y, COLOR_DARK_WALL, BackgroundFlag::Set);
+            } else {
+                tcod.con
+                    .set_char_background(x, y, COLOR_DARK_GROUND, BackgroundFlag::Set);
+            }
+        }
+    }
+
+    blit(
+        &tcod.con,
+        (0, 0),
+        (SCREEN_WIDTH, SCREEN_HEIGHT),
+        &mut tcod.root,
+        (0, 0),
+        1.0,
+        1.0,
+    );
+}
+
+fn create_tunnel(x1: i32, x2: i32, y: i32, y2: i32, map: &mut Map) {
+    for x in cmp::min(x1, x2)..(cmp::max(x1, x2) +1) {
+        for y in cmp::min(y, y2)..(cmp::max(y, y2) +1) {
+            map[x as usize][y as usize] = Tile::empty();
+        }
+    }
+}
+
+
+
+fn make_map(player: &mut Object) -> Map {
+    // fill map with "unblocked" tiles
+    let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
+    let mut rooms = vec![];
+
+    for x in 0..MAX_ROOMS {
+        let w = rand::random_range(ROOM_MIN_SIZE..ROOM_MAX_SIZE +1);
+        let h = rand::random_range(ROOM_MIN_SIZE..ROOM_MAX_SIZE +1);
+        let room = Rect::new(rand::random_range(0..MAP_WIDTH - w),
+                              rand::random_range(0..MAP_HEIGHT - h), w, h);
+        let failed = rooms.iter().any(|other| room.intersects_with(other));
+        if !failed{
+            create_room(room, &mut map);
+            let (cen_x, cen_y) = room.center();
+            if rooms.is_empty() {
+                player.x = cen_x;
+                player.y = cen_y;
+            }
+            rooms.push(room);
+        }
+    }
+
+    map
+}
+
 fn main() {
     let mut tcod = Tcod {
         root: Root::initializer()
@@ -169,20 +245,21 @@ fn main() {
 
     tcod::system::set_fps(LIMIT_FPS);
 
+    let player = Object::new(25, 23, '@', WHITE);
     let mut npcs = HashMap::new();
     npcs.insert(
         "bob".to_string(),
         Object::new(SCREEN_WIDTH / 2 - 5, SCREEN_HEIGHT / 2, '@', YELLOW),
     );
     let mut objects = Objects::new(
-        Object::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, '@', WHITE),
+        player,
         npcs,
     );
     objects.player.draw(&mut tcod.con);
 
     let game = Game {
         // generate map (at this point it's not drawn to the screen)
-        map: make_map(),
+        map: make_map(&mut objects.player),
     };
 
     while !tcod.root.window_closed() {
