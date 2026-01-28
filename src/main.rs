@@ -3,7 +3,7 @@ use tcod::colors::*;
 use tcod::console::*;
 use std::cmp;
 use std::cmp::PartialEq;
-use rand::{random_range, Rng};
+use rand::{random_range};
 
 // actual size of window
 const SCREEN_WIDTH: i32 = 80;
@@ -53,7 +53,7 @@ struct Game {
     map: Map,
 }
 
-// rectangle on the map, used to characterise a room.
+// rectangle on the map, used to characterize a room.
 #[derive(Clone, Copy, Debug)]
 struct Rect {
     x1: i32,
@@ -205,18 +205,16 @@ fn create_tunnel(x1: i32, x2: i32, y: i32, y2: i32, map: &mut Map) {
     }
 }
 
-
-
 fn make_map(player: &mut Object) -> Map {
     // fill map with "unblocked" tiles
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
     let mut rooms = vec![];
 
-    for x in 0..MAX_ROOMS {
-        let w = rand::random_range(ROOM_MIN_SIZE..ROOM_MAX_SIZE +1);
-        let h = rand::random_range(ROOM_MIN_SIZE..ROOM_MAX_SIZE +1);
-        let room = Rect::new(rand::random_range(0..MAP_WIDTH - w),
-                              rand::random_range(0..MAP_HEIGHT - h), w, h);
+    for _ in 0..MAX_ROOMS {
+        let w = random_range(ROOM_MIN_SIZE..ROOM_MAX_SIZE +1);
+        let h = random_range(ROOM_MIN_SIZE..ROOM_MAX_SIZE +1);
+        let room = Rect::new(random_range(0..MAP_WIDTH - w),
+                              random_range(0..MAP_HEIGHT - h), w, h);
         let failed = rooms.iter().any(|other| room.intersects_with(other));
         if !failed{
             create_room(room, &mut map);
@@ -224,6 +222,16 @@ fn make_map(player: &mut Object) -> Map {
             if rooms.is_empty() {
                 player.x = cen_x;
                 player.y = cen_y;
+            } else {
+                let (prev_x, prev_y) = rooms[rooms.len() - 1].center();
+
+                if rand::random() {
+                    create_tunnel(prev_x, cen_x, prev_y, prev_y, &mut map);
+                    create_tunnel(cen_x, cen_x, prev_y, cen_y, &mut map);
+                } else {
+                    create_tunnel(prev_x, prev_x, prev_y, cen_y, &mut map);
+                    create_tunnel(prev_x, cen_x, cen_y, cen_y, &mut map);
+                }
             }
             rooms.push(room);
         }
@@ -245,7 +253,7 @@ fn main() {
 
     tcod::system::set_fps(LIMIT_FPS);
 
-    let player = Object::new(25, 23, '@', WHITE);
+    let player = Object::new(0, 0, '@', WHITE);
     let mut npcs = HashMap::new();
     npcs.insert(
         "bob".to_string(),
